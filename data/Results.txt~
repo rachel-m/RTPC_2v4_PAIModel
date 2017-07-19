@@ -1,0 +1,68 @@
+Exit beam line study
+SigE summed energy deposit at r > 100mm
+
+## 0 SigE = 49.9
+#BL-Dim: 8.5 10.0 0 0 0
+
+## 3 SigE = 2120
+#BL-Dim: 8.5 10.0 3 0 0
+
+## 3a SigE = 4475
+#BL-Dim: 12 14 3 0 0
+
+## 3b SigE = 4863
+#BL-Dim: 20 22 3 0 0
+
+## 3c SigE = 4023
+#BL-Dim: 30 33 3 0 0
+
+## 3d SigE = 633
+#BL-Dim: 40 43 3 5.0 0
+
+## 3e SigE = 287
+#BL-Dim: 8.5 10.0 3 5.0 0
+
+## 3f SigE = 925.1
+#BL-Dim: 8.5 10.0 3 0.5 0
+
+## 3g SigE = 913.5
+#BL-Dim: 8.5 10.0 3 0.5 85
+
+## 3h SigE = 602.5
+#BL-Dim: 8.5 10.0 3 0.5 -85
+
+## 3i SigE = 118
+#BL-Dim: 8.5 10.0 3 5.0 85
+
+## 3j SigE = 316
+#BL-Dim: 8.5 10.0 3 5.0 -85
+
+## 3k SigE = 167.6
+#BL-Dim: 8.5 10.0 3 10.0 0
+
+## 3l SigE = 635.3
+#BL-Dim: 40 43 3 10.0 0
+
+## 1k SigE = 4181
+#BL-Dim: 8.5 10.0 1 10.0 0
+
+## 1l SigE = 264.5
+BL-Dim: 40 43 1 10.0 0
+
+## 1m SigE = 270.6
+#BL-Dim: 40 43 1 5.0 0
+
+## 1n SigE = 278
+BL-Dim: 60 63 1 10.0 0
+
+## 1o SigE = 246.8
+BL-Dim: 40 43 1 5.0 300
+
+## 1p SigE = 341.5
+BL-Dim: 40 43 1 5.0 -300
+
+## 1r SigE = 272.3 Extend b-field box (keV)
+BL-Dim: 40 43 1 0.0 0
+
+## 1q SigE = 272.3 Extend b-field box (keV)
+BL-Dim: 40 43 1 5.0 0

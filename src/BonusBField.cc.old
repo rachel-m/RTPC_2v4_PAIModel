@@ -1,0 +1,488 @@
+// ********************************************************************
+//
+// $Id: BField.cc,v 3.0, 2007/10/19  Bonus Exp $
+//
+//////////////////////////////////////////////////////////////////////
+
+#include "BonusBField.hh"
+
+#include <iostream>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <fstream>
+#include  <math.h>
+using namespace std;
+//////////////////////////////////////////////////////////////////////
+// Construction/Destruction
+//////////////////////////////////////////////////////////////////////
+
+BonusBField::BonusBField(char* mapname,double xoff, double yoff, double zoff)
+{
+  char strFile[]="data/BField.ini" ;
+  ReadIni(strFile);
+  iRNum=int((R_max-R_min)/dBFieldRStep)+1;
+  if (iRNum<2)
+    {
+      iRNum=3; //set the minimum to 3
+      R_max=R_min+3*dBFieldZStep;
+    }
+  iZNum=int((Z_max-Z_min)/dBFieldZStep)+1;
+  if (iZNum<2)
+    {
+      iZNum=3; //set the minimum to 3
+      Z_max=Z_min+3*dBFieldZStep;
+    }
+  
+  //dynalic allocated the 3 dimensional array: double dBField[R][Z][Variables];
+  //dBField[indexR][indexZ][0] x
+  //dBField[indexR][indexZ][1] r
+  //dBField[indexR][indexZ][2] z
+  //dBField[indexR][indexZ][3] P_phi
+  //dBField[indexR][indexZ][4] P_r
+  //dBField[indexR][indexZ][5] P_z
+  
+  ///////////allocate start//////////
+  int i,j,k;
+  dBField=new double **[iRNum];
+  for(i=0;i<iRNum;i++)
+    {
+      dBField[i]=new double *[iZNum];
+      for (j=0;j<iZNum;j++)
+	{
+	  dBField[i][j]=new double [6];
+	  //initial the array
+	  for (k=0;k<6;k++)    dBField[i][j][k]=0.0;
+	}
+    }
+  /////////////allocate end////////////
+  
+  if(mUseUniformB!=1) ReadBField(mapname);
+}
+
+BonusBField::~BonusBField()
+{
+  int i,j;
+  for(i=0;i<iRNum;i++)
+    {
+      for (j=0;j<iZNum;j++)
+	{
+	  delete[] dBField[i][j];
+	}
+      delete[] dBField[i];
+    }
+  delete [] dBField;
+}
+
+/////////////////////////////////////////////////////////////////////
+bool BonusBField::ReadIni(const char *filename="BField.ini")
+{
+  FILE *ini;
+  char ch[]="=;\n";
+  char *name,*value,line[100];
+  char *pDest;
+  int iPos=-1;
+  
+  if((ini=fopen(filename,"r"))==NULL)
+    {
+      printf("***Error! Can not open configure file \"%s\"!",filename);
+      return false;
+    }
+  printf("\nThe magnetic field configuration is:\n");
+  
+  while(!feof(ini))
+    {
+      fgets(line,100,ini);
+      /* Search forward. for the '#' to skip the comment*/
+      pDest = strchr( line, '#' );
+      iPos = pDest - line + 1;
+      //in Linux, if not found '#', iPos==1073747457//
+      if(iPos>0 && iPos<100) continue;
+      name=strtok(line,ch);
+      value=strtok(0,ch);
+      //show the confif info
+      if(name&&value)
+	printf("%15s = %s\n",name,value);
+      else
+	{
+	  printf("read %s error\n",filename);
+	}
+      if (strcmp(name,"UseUniformB")==0) mUseUniformB=atoi(value);
+      else if (strcmp(name,"R_min")==0) R_min=atof(value);
+      else if (strcmp(name,"R_max")==0) R_max=atof(value);
+      else if (strcmp(name,"Z_min")==0) Z_min=atof(value);
+      else if (strcmp(name,"Z_max")==0) Z_max=atof(value);
+      else if (strcmp(name,"BFieldRStep")==0)    dBFieldRStep=atof(value);
+      else if (strcmp(name,"BFieldZStep")==0)    dBFieldZStep=atof(value);
+      else if (strcmp(name,"OriginX")==0)    dOringin[0]=atof(value);
+      else if (strcmp(name,"OriginY")==0)    dOringin[1]=atof(value);
+      else if (strcmp(name,"OriginZ")==0)    dOringin[2]=atof(value);
+      else if (strcmp(name,"CurrentRatio")==0) dCurrentRatio=atof(value);
+      else if (strcmp(name,"UniformB_x")==0) mUniformB[0]=atof(value);
+      else if (strcmp(name,"UniformB_y")==0) mUniformB[1]=atof(value);
+      else if (strcmp(name,"UniformB_z")==0) mUniformB[2]=atof(value);
+      //else if (strcmp(name,"Quiet")==0)    strcpy(Para6,value);
+      else continue;
+    }
+  fclose(ini);
+  //convert to map coordinate
+  Z_min+=dOringin[2];
+  Z_max+=dOringin[2];
+  return true;
+}
+
+/////////////////////////////////////////////////////////////////////
+bool BonusBField::ReadBField(const char *filename)
+{
+  printf("\nLoading Magnetic Field Map %s......\n",filename);
+  ifstream ins;
+  int indexR=0,indexZ=0,col=0;
+  double tempLine[6];
+  ins.open(filename);
+  if (ins.fail())
+    {
+      printf("***ERROR! Can not open Magnetic field map file %s...Exit!***\n",filename);
+      return false;
+    }
+  //eat the first line
+  char tempname[256];
+  ins.getline (tempname,256);
+  
+  while (!ins.eof())
+    {
+      for(col=0;col<6;col++)    ins>>tempLine[col];
+      //check for R and Z
+      if (tempLine[1]>=R_min && tempLine[1]<=R_max && tempLine[2]>=Z_min && tempLine[2]<=Z_max)
+	{//store the value
+	  indexR=int((tempLine[1]-R_min)/dBFieldRStep);
+	  indexZ=int((tempLine[2]-Z_min)/dBFieldZStep);
+	  for(col=0;col<6;col++)
+	    dBField[indexR][indexZ][col]=tempLine[col];
+	}
+    }
+  
+#ifdef BFIELD_DEBUG
+  if(BFIELD_DEBUG>=2)
+    {
+      printf("The Magnetic field Map is:\n");
+      printf("      x         r        z        B_phi      B_r     B_z \n");
+      for (indexR=0;indexR<iRNum;indexR++)
+	{
+	  for (indexZ=0;indexZ<iZNum;indexZ++)
+	    {
+	      for(col=0;col<6;col++)    printf(" %8.2f ",dBField[indexR][indexZ][col]);
+	      printf("\n");
+	    }
+	  printf("\n");
+	}
+    }
+#endif
+  
+  return true;
+}
+
+/////////////////////////////////////////////////////////////////////
+bool BonusBField::Interpolation(double* Pos,double* B,int n)
+{/*////////////////////////////////////////
+ //function: calculate the nth order interpolation
+ //interpolation by Z first,found out B[r0][Z],B[r1][Z],B[r2][Z]
+ //then using this 3 numbers to interpolation by Radius to get B[r][z]
+ //Input:
+ // Pos[3]: the position in x,y,z coordinate in cm,origin variable
+ // n : calculate the Nth order
+ //Output:
+ // B[3]: the magnetic field in B_x,B_y,B_z in gause
+ *//////////////////////////////////////////
+  
+  double r=sqrt(Pos[0]*Pos[0]+Pos[1]*Pos[1]);
+  double z=Pos[2];
+  
+  if (n>=iZNum || n>=iRNum)
+    {
+      printf("\n**Too few points to finish %dth order intepolation!**",n);
+      printf("**Please change the config file to load more data points or use lower order Number!**\n");
+      return false;
+    }
+  int StartIndexR=0,StartIndexZ=0;  //the first point to do the interpolation
+  StartIndexR=int((r-dBField[0][0][1])/dBFieldRStep);
+  if (StartIndexR<0 || StartIndexR>=iRNum)
+    {
+      printf("\n**Error!!! Radius=%.4f exceed the maximum=%.4f !!!**\n",r,iRNum*dBFieldRStep);
+      return false;
+    }
+  StartIndexZ=int((z-dBField[0][0][2])/dBFieldZStep);
+  if (StartIndexZ<0 || StartIndexZ>=iZNum)
+    {
+      printf("\n**Error!!! Z=%.4f exceed the maximum=%.4f !!!**\n",z,iZNum*dBFieldZStep);
+      return false;
+    }
+  //choose a best position to interpolate, consider the lower and upper limit
+  if (StartIndexR>iRNum-1-n) StartIndexR=iRNum-1-n;
+  if (StartIndexZ>iZNum-1-n) StartIndexZ=iZNum-1-n;
+  
+  // interpolation by Z first
+  double temp,tempB[3][3];
+  //tempB[0][Point 1,2,3] :  B_Phi[3],
+  //tempB[1][Point 1,2,3] :  B_R[3],
+  //tempB[2][Point 1,2,3] :  B_Z[3],
+  int iR,iZ,ii,jj,kk;
+  for (ii=0;ii<=n;ii++)
+    {
+      iR=StartIndexR+ii;
+      //initial
+      tempB[0][ii]=0.;
+      tempB[1][ii]=0.;
+      tempB[2][ii]=0.;
+      for (kk=0;kk<=n;kk++)
+	{
+	  temp=1.;
+	  for (jj=0;jj<=n;jj++)
+	    {
+	      iZ=StartIndexZ+jj;
+	      if(jj!=kk)
+		temp*=(z-dBField[iR][iZ][2])/(dBField[iR][StartIndexZ+kk][2]-dBField[iR][iZ][2]);
+	    }
+	  //found out B[R_ii][Z]
+	  tempB[0][ii]+=temp*dBField[iR][StartIndexZ+kk][3];
+	  tempB[1][ii]+=temp*dBField[iR][StartIndexZ+kk][4];
+	  tempB[2][ii]+=temp*dBField[iR][StartIndexZ+kk][5];
+	}
+    }
+  
+  //interpolation by Radius to get B[r][z]
+  double B_polar[]={0.,0.,0.};
+  iZ=StartIndexZ;
+  for (kk=0;kk<=n;kk++)
+    {
+      temp=1.;
+      for (jj=0;jj<=n;jj++)
+	{
+	  iR=StartIndexR+jj;
+	  if(jj!=kk)
+	    temp*=(r-dBField[iR][iZ][1])/(dBField[StartIndexR+kk][iZ][1]-dBField[iR][iZ][1]);
+	}
+      //found out B[R_ii][Z]
+      B_polar[0]+=temp*tempB[0][kk];
+      B_polar[1]+=temp*tempB[1][kk];
+      B_polar[2]+=temp*tempB[2][kk];
+    }
+  
+  //convret from Polar to Cartesian coordinate
+  double cos=Pos[0]/r;
+  double sin=Pos[1]/r;
+  if (r==0)
+    {
+      cos=0.0;
+      sin=0.0;
+    }
+  B[0]=B_polar[1]*cos;
+  B[1]=B_polar[1]*sin;
+  B[2]=B_polar[2];
+  
+  return  true;
+}
+
+#include <time.h>
+/////////////////////////////////////////////////////////////////////
+bool BonusBField::GetBField( const double* Pos, double* B) const
+{//input x,y,z in centimeter
+  int i;
+  if(mUseUniformB==1)
+    {
+      for (i=0;i<3;i++) B[i]=mUniformB[i];
+      return true;
+    }
+  //shift the origin to the data map coordinate
+  double pPos[3];
+  double flag=1.0;
+  //record the flag for positive Z half or negtive Z half
+  //at negtive Z half, B_r=-B_r, thus B_x and B_y must be mutiplied by -1
+  if (Pos[2]<0) flag=-1.0;
+  pPos[0]=(Pos[0])/cm +dOringin[0];
+  pPos[1]=(Pos[1])/cm +dOringin[1];
+  pPos[2]=fabs(Pos[2]/cm)+dOringin[2];
+  bool result=false;
+#ifdef BFIELD_DEBUG
+  //benchmark
+  if(BFIELD_DEBUG>=3)
+    {
+      time_t tStart,tEnd;
+      char strLog[255];
+      time(&tStart);
+      printf("start 50,000,000 Interpolation\n");
+      for (i=0;i<50000000;i++) result=this->Interpolation(pPos,B,2);
+      time(&tEnd);
+      sprintf(strLog,"Interpolation end! tStart=%d tEnd=%d Timediff=%.2f",
+	      (int)tStart,(int)tEnd,difftime(tEnd,tStart));
+      printf("%s\n",strLog);
+      
+      time(&tStart);
+      printf("start 50,000,000 Interpolation_Release\n");
+      for (i=0;i<50000000;i++) result=Interpolation_Release(pPos,B,2);
+      time(&tEnd);
+      sprintf(strLog,"Interpolation_Release end! tStart=%d tEnd=%d Timediff=%.2f",
+	      (int)tStart,(int)tEnd,difftime(tEnd,tStart));
+      printf("%s\n",strLog);
+    }
+#endif
+  //result=Interpolation_Release((double*)pPos,(double*)B,(int)2);
+  result=Interpolation_Release((double*)pPos,(double*)B,2);
+  if(!result) return false;
+  //apply the flag
+  B[0]*=flag;
+  B[1]*=flag;
+#ifdef BFIELD_DEBUG
+  if(BFIELD_DEBUG>=1)
+    {
+      printf("Input position(x,y,z)=(%fcm,%fcm,%fcm):==>",Pos[0],Pos[1],Pos[2]);
+      printf("map position(x,y,z)=(%fcm,%fcm,%fcm);\n",pPos[0],pPos[1],pPos[2]);
+      printf("The raw magnetic field in Gause without apply CurrentRatio: ");
+      printf("(B_x=%7.2f,  B_y=%7.2f,  B_z=%7.2f);\n",B[0],B[1],B[2]);
+    }
+#endif
+  //apply real current and convert the unit from Gause to Tesla
+  for (i=0;i<3;i++) B[i]*=dCurrentRatio/10000.0;
+#ifdef BFIELD_DEBUG
+  if(BFIELD_DEBUG>=1)
+    {
+      printf("The final magnetic field in Tesla after apply CurrentRatio: ");
+      printf("(B_x=%2.5f,  B_y=%2.5f,  B_z=%2.5f);\n",B[0],B[1],B[2]);
+    }
+#endif
+  return true;
+}
+/*
+/////////////////////////////////////////////////////////////////////
+bool BonusBField::GetBField(float* fPos,float* fB)
+{//input x,y,z in centimeter
+  bool status=false;
+  double dPos[3],dB[3];
+  int i;
+  for ( i=0;i<3;i++)
+    {
+      dPos[i]=(double) fPos[i];
+    }
+  status=GetBField(dPos,dB);
+  
+  for ( i=0;i<3;i++)
+    {
+      fB[i]=(float) dB[i];
+    }
+  return status;
+}
+*/
+
+/////////////////////////////////////////////////////////////////////
+bool BonusBField::Interpolation_Release(const double* Pos, double* B, int n) const
+{/*////////////////////////////////////////
+ //function: calculate the nth order interpolation
+ //interpolation by Z first,found out B[r0][Z],B[r1][Z],B[r2][Z]
+ //then using this 3 numbers to interpolation by Radius to get B[r][z]
+ //Input:
+ // Pos[3]: the position in x,y,z coordinate in cm,origin variable
+ // n : calculate the Nth order
+ //Output:
+ // B[3]: the magnetic field in B_x,B_y,B_z in gause
+ *//////////////////////////////////////////
+  
+  double r=sqrt(Pos[0]*Pos[0]+Pos[1]*Pos[1]);
+  double z=Pos[2];
+  int StartIndexR=0,StartIndexZ=0;  //the first point to do the interpolation
+  StartIndexR=int((r-dBField[0][0][1])/dBFieldRStep);
+  StartIndexZ=int((z-dBField[0][0][2])/dBFieldZStep);
+  
+#ifdef  BFIELD_DEBUG
+  //In order to get better performance, I don't check these in the release version any longer.
+  //Just make sure n<=3, ensure iRNum>7/0.5=14 and iZNum>10/0.5=20 ;(the lager the stabler)
+  //the position must be able to be interpolated
+  if (n>=iZNum || n>=iRNum)
+    {
+      printf("\n**Too few points to finish %dth order intepolation!**",n);
+      printf("**Please change the config file to load more data points or use lower order Number!**\n");
+      return false;
+    }
+  
+  if (StartIndexR<0 || StartIndexR>=iRNum)
+    {
+      printf("\n**Error!!! Radius=%.4f exceed the maximum=%.4f !!!**\n",r,iRNum*dBFieldRStep);
+      return false;
+    }
+  
+  if (StartIndexZ<0 || StartIndexZ>=iZNum)
+    {
+      printf("\n**Error!!! Z=%.4f exceed the maximum=%.4f !!!**\n",z,iZNum*dBFieldZStep);
+      return false;
+    }
+#endif
+  
+  //choose a best position to interpolate, consider the lower and upper limit
+  if (StartIndexR>iRNum-1-n) StartIndexR=iRNum-1-n;
+  if (StartIndexZ>iZNum-1-n) StartIndexZ=iZNum-1-n;
+  
+  // interpolation by Z first
+  double temp,tempB[3][3];
+  //tempB[0][Point 1,2,3] :  B_Phi[3],
+  //tempB[1][Point 1,2,3] :  B_R[3],
+  //tempB[2][Point 1,2,3] :  B_Z[3],
+  int iR,iZ,ii,jj,kk;
+  for (ii=0;ii<=n;ii++)
+    {
+      iR=StartIndexR+ii;
+      //initial
+      tempB[0][ii]=0.;
+      tempB[1][ii]=0.;
+      tempB[2][ii]=0.;
+      for (kk=0;kk<=n;kk++)
+	{
+	  temp=1.;
+	  for (jj=0;jj<=n;jj++)
+	    {
+	      iZ=StartIndexZ+jj;
+	      if(jj!=kk)
+		temp*=(z-dBField[iR][iZ][2])/(dBField[iR][StartIndexZ+kk][2]-dBField[iR][iZ][2]);
+	    }
+	  //found out B[R_ii][Z]
+	  tempB[0][ii]+=temp*dBField[iR][StartIndexZ+kk][3];
+	  tempB[1][ii]+=temp*dBField[iR][StartIndexZ+kk][4];
+	  tempB[2][ii]+=temp*dBField[iR][StartIndexZ+kk][5];
+	}
+    }
+  
+  //interpolation by Radius to get B[r][z]
+  double B_polar[]={0.,0.,0.};
+  iZ=StartIndexZ;
+  for (kk=0;kk<=n;kk++)
+    {
+      temp=1.;
+      for (jj=0;jj<=n;jj++)
+	{
+	  iR=StartIndexR+jj;
+	  if(jj!=kk)
+	    temp*=(r-dBField[iR][iZ][1])/(dBField[StartIndexR+kk][iZ][1]-dBField[iR][iZ][1]);
+	}
+      //found out B[R_ii][Z]
+      B_polar[0]+=temp*tempB[0][kk];
+      B_polar[1]+=temp*tempB[1][kk];
+      B_polar[2]+=temp*tempB[2][kk];
+    }
+  
+  //convret from Polar to Cartesian coordinate
+  double cos;
+  double sin;
+  if (r==0)
+    {
+      cos=0.0;
+      sin=0.0;
+    }
+  else
+    { 
+      cos=Pos[0]/r;
+      sin=Pos[1]/r;
+    }
+  B[0]=B_polar[1]*cos;
+  B[1]=B_polar[1]*sin;
+  B[2]=B_polar[2];
+  
+  return  true;
+}
+

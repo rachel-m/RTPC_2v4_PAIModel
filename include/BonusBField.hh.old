@@ -1,0 +1,63 @@
+// BField.h: interface for the BField class.
+//
+//////////////////////////////////////////////////////////////////////
+
+#if !defined(AFX_BFIELD_H)
+#define AFX_BFIELD_H
+
+#include  <math.h>
+#include "globals.hh"
+#include "G4MagneticField.hh"
+#include "G4ios.hh"
+#include "G4SystemOfUnits.hh"
+#include "G4PhysicalConstants.hh"
+
+//#if _MSC_VER > 1000
+//#pragma once
+//#endif // _MSC_VER > 1000
+
+//#define BFIELD_DEBUG 1
+class BonusBField : public G4MagneticField
+{
+public:
+  BonusBField(char*, double, double, double);
+  virtual ~BonusBField();
+  bool GetBField(const double* ,double* b) const;
+  // bool GetBField(float*,float*);
+  int  GetDVCSCurrent(){ return int(fabs(534.*dCurrentRatio));};
+  virtual void GetFieldValue( const double Point[4],double *Bfield) const;
+private:
+  bool ReadIni(const char *filename);
+  bool ReadBField(const char *filename="saclay5.tab");
+  bool Interpolation(double*,double*,int=2);
+  bool Interpolation_Release(const double*,double*,int=3) const;
+public:
+  int mUseUniformB;
+  double mUniformB[3];
+  double dCurrentRatio;
+  
+private:
+  //dynalic allocated the 3 dimensional array:	double dBField[indexR][indexZ][Variables];
+  //dBField[indexR][indexZ][0] x
+  //dBField[indexR][indexZ][1] r
+  //dBField[indexR][indexZ][2] z
+  //dBField[indexR][indexZ][3] P_phi
+  //dBField[indexR][indexZ][4] P_r
+  //dBField[indexR][indexZ][5] P_z
+  double ***dBField;
+  
+  double dBFieldRStep,dBFieldZStep;
+  double R_min,R_max;
+  double Z_min,Z_max;
+  double dOringin[3];
+  int iZNum,iRNum;
+  
+};
+
+inline void BonusBField::GetFieldValue(const double point[4],
+				      double *Bfield ) const
+{
+  GetBField(point,Bfield) ;
+}
+
+#endif // !defined(AFX_BFIELD_H)
